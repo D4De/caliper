@@ -73,11 +73,5 @@ _ then run CALIPER:
 	./bin/caliper -f 3x3config.txt -s RANDOM -c 0.95 -r 0.1 -o 3x3rel.txt
 Here, the above generated “3x3config.txt" configuration file is used; a RANDOM seed is selected; Monte Carlo simulations are run until a 95% confidence interval (-c 0.95) with a 0.1 stopping threshold (-r 0.1) is reached; the reliability curve is saved in the file "reliability.txt”, while other statistics are printed on the standard output.
 
-
-** Updates:
-1.0: 
- * Initial release
-1.1:
- * Fixed various bugs (commit 4273)
  
  ** To signal bugs or for questions, please write to: antonio <dot> miele <at> polimi <dot> it
