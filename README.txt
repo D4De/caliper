@@ -78,6 +78,6 @@ Here, the above generated “3x3config.txt" configuration file is used; a RANDOM
 1.0: 
  * Initial release
 1.1:
- * Fixed various bugs
+ * Fixed various bugs (commit 4273)
  
  ** To signal bugs or for questions, please write to: antonio <dot> miele <at> polimi <dot> it
