@@ -29,6 +29,7 @@ Neither the name of Politecnico di Milano nor the names of its contributors may 
 
 #define NTESTS 100000
 #define BETA 2
+#define MIN_NUM_OF_TRIALS 30
 
 #define RANDOMSEED_STR "RANDOM"
 
@@ -81,7 +82,6 @@ int main(int argc, char* argv[]) {
     unsigned short randomSeed[3] = { 0, 0, 0 };
     int period = 0;
     double confInt = 0, thr = 0;
-
 
     ////////////////////////////////////////////////////////////////////////////////
     //parsing input arguments
@@ -234,21 +234,17 @@ int main(int argc, char* argv[]) {
     // confidence interval set up
     double Zinv = invErf(0.5 + confInt / 100.0 / 2);
     double ht = thr / 100.0 / 2; // half of the threshold
-    double sumTTF, sumTTFX2; //sum of times to failure and sum of squared times to failure
-    double ciSize; // current size of the confidence interval
+    double sumTTF = 0, sumTTFX2 = 0; //sum of times to failure and sum of squared times to failure
+    double ciSize = 0; // current size of the confidence interval
     double mean;   // current mean of the distribution
     double var;	   // current variance of the distribution
-
-    // initialize vars    
-    sumTTF = 0;
-    sumTTFX2 = 0.0;
-    ciSize = 0;
 
     ////////////////////////////////////////////////////////////////////////////////
     //run Monte Carlo simulation
     ////////////////////////////////////////////////////////////////////////////////
     //for (i = 0, sumTTF = 0; i < num_of_tests; i++) {
-    for (i = 0; (numTest && (i < num_of_tests)) || (!numTest && ((i < 30) || (ciSize / mean > ht))); i++) {
+    //when using the confidence interval, we want to execute at least MIN_NUM_OF_TRIALS
+    for (i = 0; (numTest && (i < num_of_tests)) || (!numTest && ((i < MIN_NUM_OF_TRIALS) || (ciSize / mean > ht))); i++) {
         //std::cerr << i << std::endl;
         double random;
         std::vector<double> currR;
@@ -268,7 +264,7 @@ int main(int argc, char* argv[]) {
         currR.clear();
         alives.clear();
         for (j = 0; j < max_cores; j++) {
-            currR.push_back(1);
+            currR.push_back(1.0);
             alives.push_back(true);
         }
 
@@ -280,64 +276,68 @@ int main(int argc, char* argv[]) {
             for (j = 0; j < max_cores; j++) {
                 if (alives[j] == true) {
                     random = (double) drand48() * currR[j]; //current core will potentially die when its R will be equal to random. drand48() generates a number in the interval [0.0;1.0)
-                    if (period == 0) {
+                    if (period == 0) { //NON PERIODIC SCENARIO
                         t = configurations[currConf][0][j] * pow(-log(random), (double) 1 / BETA); //elapsed time from 0 to obtain the new R value equal to random
                         eqT = configurations[currConf][0][j] * pow(-log(currR[j]), (double) 1 / BETA); //elapsed time from 0 to obtain the previous R value
-                        //the diffrence between the two values represents the time period elapsed from the previous failure to the current failure
+                        //the difference between the two values represents the time elapsed from the previous failure to the current failure
                         //(we will sum to the total time the minimum of such values)
                         t = t - eqT;
-                    } else {
-                        //TODO iterate on various configs for current architecture by using direct and inverse formulas until reaching the selected R
+                    } else {  //PERIODIC SCENARIO
                         int currMapping;
                         double elapsedT;
                         double testR;
                         double cR = currR[j];
-                        double iterations = 0;
 
                         //computation of current mapping according to the period and the current totalTime
                         //identify current period and related mapping
                         double currPeriod = totalTime / period;
                         currMapping = ((int) currPeriod) % configurations[currConf].size();
                         //compute the spare time to complete current period
-                        double currSparePeriod = currPeriod - (int) currPeriod;
-                        //do consider that in each period the lower bound is included and the upper bound is not included [lowB;highB)
-                        if (currSparePeriod == 0) {
-                            currSparePeriod = period;
-                        }
+                        double currSparePeriod = (((int) currPeriod) + 1 - currPeriod) * period;  //TODO: fixed a bug
+                        //DO NOTE: this block of code is equivalent to the above instruction
+                        //double currSparePeriod = (ceil(currPeriod) - currPeriod) * period;
+                        ////do consider that in each period the lower bound is included and the upper bound is not included [lowB;highB)
+                        //if (currSparePeriod == 0) {
+                        //    currSparePeriod = period;
+                        //}
 
-                        //It is necessary to compute first the equivalent time to obtain the previous R with the current alpha
+                        //reset current time
+                        t = 0;
+
+                        //it is necessary to compute first the equivalent time to obtain the previous R with the current alpha
                         elapsedT = configurations[currConf][currMapping][j] * pow(-log(cR), (double) 1 / BETA);
                         //and then compute the new R
                         testR = exp(-pow((elapsedT + currSparePeriod) / configurations[currConf][currMapping][j], BETA));
 
                         bool firstIter = true;
                         while (testR > random) {
-                            //advance step by step a period per time if testR > random and update cR and interations
-                            currMapping = (currMapping + 1) % configurations[currConf].size();
                             //store "real" elapsed time since the previous failure
                             if (firstIter) {
-                                iterations = currSparePeriod;
+                                t = currSparePeriod;
                                 firstIter = false;
                             } else
-                                iterations = iterations + period;
+                                t += period;
                             cR = testR;
 
-                            //It is necessary to compute first the equivalent time to obtain the previous R with the current alpha
+                            //advance step by step a period per time if testR > random and update cR and iterations
+                            currMapping = (currMapping + 1) % configurations[currConf].size();
+                            //it is necessary to compute first the equivalent time to obtain the previous R with the current alpha
                             elapsedT = configurations[currConf][currMapping][j] * pow(-log(cR), (double) 1 / BETA);
                             //and then compute the new R
                             testR = exp(-pow((elapsedT + period) / configurations[currConf][currMapping][j], BETA));
                         }
-                        //It is impossible that R(N*period) is exactly equal to the randomly generated R value.
+
+                        //it is impossible that R(N*period) is exactly equal to the randomly generated R value.
                         //in previous iteration we have computed the largest N such that we obtain the closest R(N*period) value greater than the randomly generated R value
                         //Now we have to compute the last deltaT (that is less than the given period) to obtain the randomly generated R value
                         if (cR > random) {
-                            t = configurations[currConf][currMapping][j] * pow(-log(random), (double) 1 / BETA); //elapsed time from 0 to obtain the new R value equal to random
+                            double lastElapsedT;
+                            lastElapsedT = configurations[currConf][currMapping][j] * pow(-log(random), (double) 1 / BETA); //elapsed time from 0 to obtain the new R value equal to random
                             eqT = configurations[currConf][currMapping][j] * pow(-log(cR), (double) 1 / BETA); //elapsed time from 0 to obtain the previous R value
                             //the difference between the two values represents the time period elapsed from the previous failure to the current failure
                             //(we will sum to the total time the minimum of such values)
-                            iterations = iterations + t - eqT;
+                            t += (lastElapsedT - eqT);
                         }
-                        t = iterations;
                     }
                     //std::cerr << j << " R " << random << " " << t << std::endl;
                     if (minIndex == -1 || (minIndex != -1 && t < stepT)) {
@@ -354,17 +354,18 @@ int main(int argc, char* argv[]) {
             //std::cerr << "min " << minIndex << " " << stepT << std::endl;
 
             // update total time by using equivalent time according to the R for the core that is dying
-            // stepT is the time starting from 0 to obtain the R value when the core is dead with the current load
-            // eqT is the time starting from 0 to obtain the previous R value with the current load
-            // thus the absolute totalTime when the core is dead is equal to the previous totalTime + the difference between stepT and eqT
-            // geometrically we translate the R given the current load to right in order to intersect the previous R curve in the previous totalTime
+            //stepT is the time starting from 0 to obtain the R value when the core is dead with the current load
+            //eqT is the time starting from 0 to obtain the previous R value with the current load
+            //thus the absolute totalTime when the core is dead is equal to the previous totalTime + the difference between stepT and eqT
+            //geometrically we translate the R given the current load to right in order to intersect the previous R curve in the previous totalTime
+            totalTime = totalTime + stepT;
 
-            if (period == 0) {
-                eqT = configurations[currConf][0][minIndex] * pow(-log(currR[minIndex]), (double) 1 / BETA);
-                totalTime = totalTime + stepT; // - eqT;
-            } else {
-                totalTime = totalTime + stepT;
-            }
+            //if (period == 0) { //TODO code replaced by above instruction
+            //    eqT = configurations[currConf][0][minIndex] * pow(-log(currR[minIndex]), (double) 1 / BETA);
+            //    totalTime = totalTime + stepT; // - eqT;
+            //} else {
+            //    totalTime = totalTime + stepT;
+            //}
 
             //std::cerr << "tt " << totalTime << " " << stepT << " " << eqT << std::endl;
 
@@ -374,44 +375,50 @@ int main(int argc, char* argv[]) {
                 // compute remaining reliability for working cores
                 for (j = 0; j < max_cores; j++) {
                     if (alives[j]) {
-                        if (period == 0) {
+                        if (period == 0) { //NON PERIODIC SCENARIO
+                            eqT = configurations[currConf][0][j] * pow(-log(currR[j]), (double) 1 / BETA); //TODO: fixed a buf. we have to use the eqT of the current unit and not the one of the failed unit
                             currR[j] = exp(-pow((stepT + eqT) / configurations[currConf][0][j], BETA));
                             //std::cerr << "updR " << left_cores << " " << totalTime << " " << j << " " << currR[j] << std::endl;
-                        } else {
+                        } else { //PERIODIC SCENARIO
                             //advance step by step for the overall duration of the interval
                             int currMapping;
                             double elapsedT, tmpElapsedT;
                             double equivalentElapsedT;
                             double tmpR;
-                            int tmpMapping;
 
                             //computation of current mapping according to the period and the current totalTime
                             //identify current period and related mapping
                             double currPeriod = (totalTime - stepT) / period; // we need to restart from previous step...
                             currMapping = ((int) currPeriod) % configurations[currConf].size();
                             //compute the spare time to complete current period
-                            double currSparePeriod = currPeriod - (int) currPeriod;
-                            //do consider that in each period the lower bound is included and the upper bound is not included [lowB;highB)
-                            if (currSparePeriod == 0) {
-                                currSparePeriod = period;
-                            }
+                            double currSparePeriod = (((int) currPeriod) + 1 - currPeriod) * period;  //TODO: fixed a bug
+                            //DO NOTE: this block of code is equivalent to the above instruction
+                            //double currSparePeriod = (ceil(currPeriod) - currPeriod) * period;
+                            ////do consider that in each period the lower bound is included and the upper bound is not included [lowB;highB)
+                            //if (currSparePeriod == 0) {
+                            //    currSparePeriod = period;
+                            //}
+
+                            elapsedT = 0;
 
                             tmpElapsedT = currSparePeriod; //time elapsed from the previous time step
-                            //It is necessary to compute first the equivalent time to obtain the previous R with the current alpha ..
+                            //It is necessary to compute first the equivalent time to obtain the previous R with the current alpha...
                             equivalentElapsedT = configurations[currConf][currMapping][j] * pow(-log(currR[j]), (double) 1 / BETA);
                             //and then compute the new R
                             tmpR = exp(-pow((equivalentElapsedT + currSparePeriod) / configurations[currConf][currMapping][j], BETA));
-                            tmpMapping = (currMapping + 1) % configurations[currConf].size();
 
                             while (tmpElapsedT < stepT) {
                                 //update actual values with tested ones since the condition is satisfied 
+                                if (tmpR > currR[j]) {
+                                    std::cerr << "Non-monotonic R function: " << tmpR << " > " << currR[j] << std::endl;
+                                    //return 1;
+                                }
                                 currR[j] = tmpR;
-                                currMapping = tmpMapping;
                                 elapsedT = tmpElapsedT;
 
                                 //compute values for the next period
                                 tmpElapsedT += period;
-                                tmpMapping = (currMapping + 1) % configurations[currConf].size();
+                                currMapping = (currMapping + 1) % configurations[currConf].size();
                                 //It is necessary to compute first the equivalent time to obtain the previous R with the current alpha ..
                                 equivalentElapsedT = configurations[currConf][currMapping][j] * pow(-log(currR[j]), (double) 1 / BETA);
                                 //and then compute the new R
@@ -421,7 +428,12 @@ int main(int argc, char* argv[]) {
                             //add the last time delta
                             double lastDeltaT = stepT - elapsedT;
                             equivalentElapsedT = configurations[currConf][currMapping][j] * pow(-log(currR[j]), (double) 1 / BETA);
-                            currR[j] = exp(-pow((equivalentElapsedT + lastDeltaT) / configurations[currConf][currMapping][j], BETA));
+                            tmpR = exp(-pow((equivalentElapsedT + lastDeltaT) / configurations[currConf][currMapping][j], BETA));
+                            if (tmpR > currR[j]) {
+                                std::cerr << "Non-monotonic R function: " << tmpR << " > " << currR[j] << std::endl;
+                                return 1;
+                            }
+                            currR[j] = tmpR;
                         }
                     }
                 }
@@ -441,20 +453,20 @@ int main(int argc, char* argv[]) {
         results[totalTime]++;
         sumTTF += totalTime;
         sumTTFX2 += totalTime * totalTime;
-        mean = sumTTF / (double) (i+1); //do consider that i is incremented later
+        mean = sumTTF / (double) (i + 1); //do consider that i is incremented later
         var = sumTTFX2 / (double) (i) - mean * mean;
-        ciSize = Zinv * sqrt(var / (double) (i+1));
+        ciSize = Zinv * sqrt(var / (double) (i + 1));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
     //display results
     ////////////////////////////////////////////////////////////////////////////////
-    if(!numTest)
+    if (!numTest)
         num_of_tests = i;
     double curr_alives = num_of_tests;
     double prec_time = 0;
     double mttf_int = (sumTTF / num_of_tests);
-    double mttf_int1=0;
+    double mttf_int1 = 0;
     if (outputfilename) {
         std::ofstream outfile(outputfilename);
         if (results.count(0) == 0) {
@@ -478,8 +490,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Mean: " << mean << std::endl;
     std::cout << "Variance: " << var << std::endl;
     std::cout << "Standard Deviation: " << sqrt(var) << std::endl;
-    std::cout << "Coefficent of variation: " << (sqrt(var)/mean) << std::endl;
-    std::cout << "Confidence interval: " << mean - ciSize << " " << mean + ciSize << std::endl;  
+    std::cout << "Coefficient of variation: " << (sqrt(var) / mean) << std::endl;
+    std::cout << "Confidence interval: " << mean - ciSize << " " << mean + ciSize << std::endl;
 
     return 0;
 }

@@ -1,4 +1,4 @@
-CC=g++
+CXX=g++
 CFLAGS=-c -O3
 LDFLAGS=-lm
 
@@ -12,13 +12,13 @@ THERMAL_EX=dummythermal
 all: $(CALIPER_EX) $(THERMAL_EX)
 
 $(CALIPER_EX): $(CALIPER_OBJ)  
-	$(CC) $(CALIPER_OBJ) $(LDFLAGS) -o $@
+	$(CXX) $(CALIPER_OBJ) $(LDFLAGS) -o $@
 
 $(THERMAL_EX): $(THERMAL_OBJ)  
-	$(CC) $(THERMAL_OBJ) $(LDFLAGS) -o $@
+	$(CXX) $(THERMAL_OBJ) $(LDFLAGS) -o $@
 
 .cpp.o:
-	$(CC) $(CFLAGS) $< -o $@
+	$(CXX) $(CFLAGS) $< -o $@
 	
 clean:
 	rm -rf src/*.o $(CALIPER_EX) $(THERMAL_EX) 

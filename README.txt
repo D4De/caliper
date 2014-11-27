@@ -1,5 +1,5 @@
 ****************************** Copyright & License *****************************
-CALIPER v1.0 is a software framework for the reliability lifetime evaluation of multicore architectures. Copyright (C) 2014 Politecnico di Milano.
+CALIPER v1.1 is a software framework for the lifetime reliability evaluation of multicore architectures. Copyright (C) 2014 Politecnico di Milano.
 
 This framework is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
@@ -8,11 +8,27 @@ This framework is distributed in the hope that it will be useful, but WITHOUT AN
 Neither the name of Politecnico di Milano nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 ********************************************************************************
 
+** Introduction:
+CALIPER v1.1 is a software framework for the lifetime reliability evaluation of N-out-of-M multicore architectures. A theoretical description of the implemented lifetime reliability model can be found in:
+C. Bolchini, M. Carminati, M. Gribaudo, A. MIELE: A lightweight and open-source framework for the lifetime estimation of multicore systems. In Proc. of IEEE International Conference on Computer Design (ICCD), Seoul, South Korea, 2014, pp. 166-172. 
+
+If you use CALIPER in your research, we would appreciate a citation to:
+
+@inproceedings{ICCD2014,
+ author = {C. Bolchini and M. Carminati and M. Gribaudo and A. Miele},
+ title = {A lightweight and open-source framework for the lifetime estimation of multicore systems},
+ booktitle = {Proc. IEEE Intl. Conf. Computer Design - ICCD},
+ year = {2014},
+ month = {Oct.},
+ pages = {166--172}
+}
+
 
 ** This folder contains:
 _ this "README.txt" file
 _ a "Makefile" for the project
 _ a "src" folder where to find the source code
+_ an example of input configuration file of a 2oo3 system ("example2oo3.txt")
 
 
 ** How to compile and run CALIPER (on Linux/Mac):
@@ -47,7 +63,7 @@ where:
 > CONFIGURATION: is a comma-separated string, listing the ids of failed cores in that configuration, sorted by time (with the oldest failure first). The initial configuration, where there is no failure, is indicated by means of the character ‘#’ (hash).
 > AGING_RATES: is a blank space-separate string, listing the aging rate for the Reliability formula (based on the Weibull distribution) for each core in the architecture; the Beta parameter in the Weibull formula is specified with a macro in the source code. A number must be inserted also for failed core, even if it will be ignored by CALIPER.
 
-The configuration file must contain all the possible failure combinations until a minimum number of core, which can be specified by the user or derived from the file itself. Moreover, in order to specify periodic remapping strategies, more than one entry for the same CONFIGURATION need to be specified on separate lines. 
+The configuration file must contain all the possible failure combinations until a minimum number of core, which can be specified by the user or derived from the file itself. Moreover, in order to specify periodic remapping strategies, more than one entry for the same CONFIGURATION need to be specified on separate lines. example2oo3.txt is an example of configuration file of a 2oo3 system
 
 
 ** Sample Execution:
@@ -56,3 +72,12 @@ _ generate the aging rate configuration file for a 3x3 architecture working with
 _ then run CALIPER:
 	./bin/caliper -f 3x3config.txt -s RANDOM -c 0.95 -r 0.1 -o 3x3rel.txt
 Here, the above generated “3x3config.txt" configuration file is used; a RANDOM seed is selected; Monte Carlo simulations are run until a 95% confidence interval (-c 0.95) with a 0.1 stopping threshold (-r 0.1) is reached; the reliability curve is saved in the file "reliability.txt”, while other statistics are printed on the standard output.
+
+
+** Updates:
+1.0: 
+ * Initial release
+1.1:
+ * Fixed various bugs
+ 
+ ** To signal bugs or for questions, please write to: antonio <dot> miele <at> polimi <dot> it
